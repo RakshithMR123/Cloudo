@@ -1,0 +1,8 @@
+{
+  "name": "Cloud Chat & Blog Platform",
+  "description": "A high-performance responsive platform combining AI-powered real-time chat with a custom blog publisher, featuring server-side Gemini AI content creation and secure workspaces.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

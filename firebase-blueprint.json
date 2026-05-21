@@ -1,0 +1,82 @@
+{
+  "entities": {
+    "Channel": {
+      "title": "Channel",
+      "description": "A chat channel/topic room",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "The unique ID of the channel" },
+        "name": { "type": "string", "description": "Format: lowercase, dash-separated name" },
+        "description": { "type": "string", "description": "Purpose of this channel" },
+        "topic": { "type": "string", "description": "Current engineering topic details" },
+        "type": { "type": "string", "enum": ["public", "private", "direct"] },
+        "unreadCount": { "type": "integer" }
+      },
+      "required": ["id", "name", "description", "topic", "type"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "A single chat message within a channel",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "channelId": { "type": "string" },
+        "sender": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "avatar": { "type": "string" },
+            "role": { "type": "string", "enum": ["user", "assistant", "system"] },
+            "email": { "type": "string" }
+          },
+          "required": ["name", "avatar", "role"]
+        },
+        "content": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "channelId", "sender", "content", "timestamp"]
+    },
+    "BlogPost": {
+      "title": "BlogPost",
+      "description": "A technical blog post publication",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "slug": { "type": "string" },
+        "excerpt": { "type": "string" },
+        "content": { "type": "string" },
+        "category": { "type": "string" },
+        "tags": { "type": "array" },
+        "author": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "avatar": { "type": "string" },
+            "role": { "type": "string" }
+          },
+          "required": ["name", "avatar", "role"]
+        },
+        "reads": { "type": "integer" },
+        "likes": { "type": "integer" },
+        "publishedAt": { "type": "string" },
+        "featured": { "type": "boolean" }
+      },
+      "required": ["id", "title", "slug", "excerpt", "content", "category", "tags", "author", "reads", "likes", "publishedAt", "featured"]
+    }
+  },
+  "firestore": {
+    "channels": {
+      "schema": "Channel",
+      "description": "Public chat node directory"
+    },
+    "channels/{channelId}/messages": {
+      "schema": "Message",
+      "description": "Subcollection holding chats inside a specific channel"
+    },
+    "blogPosts": {
+      "schema": "BlogPost",
+      "description": "Self-published technical blogs database"
+    }
+  }
+}

@@ -1,0 +1,103 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Global Safety Net default catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- REUSABLE COHESIVE GLOBAL HELPERS ---
+    function isValidId(id) { 
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
+    }
+    function incoming() { 
+      return request.resource.data; 
+    }
+    function existing() { 
+      return resource.data; 
+    }
+    function isSignedIn() { 
+      return request.auth != null; 
+    }
+    function isVerified() { 
+      return isSignedIn() && request.auth.token.email_verified == true; 
+    }
+
+    // --- ENTITY SCHEMA VALIDATIONS (ANTI-UPDATE-GAP) ---
+    
+    function isValidChannel(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.name is string && data.name.size() <= 100
+        && data.description is string && data.description.size() <= 500
+        && data.topic is string && data.topic.size() <= 500
+        && data.type is string && (data.type == 'public' || data.type == 'private' || data.type == 'direct')
+        && data.unreadCount is int;
+    }
+
+    function isValidMessage(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.channelId is string && data.channelId.size() <= 128
+        && data.content is string && data.content.size() <= 5000
+        && data.timestamp is string && data.timestamp.size() <= 64
+        && data.sender is map
+        && data.sender.name is string && data.sender.name.size() <= 100
+        && data.sender.avatar is string && data.sender.avatar.size() <= 16
+        && data.sender.role is string && (data.sender.role == 'user' || data.sender.role == 'assistant' || data.sender.role == 'system')
+        && (data.sender.role != 'user' || (data.sender.email is string && data.sender.email.size() <= 150));
+    }
+
+    function isValidBlogPost(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.title is string && data.title.size() <= 200
+        && data.slug is string && data.slug.size() <= 200
+        && data.excerpt is string && data.excerpt.size() <= 1000
+        && data.content is string && data.content.size() <= 50000
+        && data.category is string && data.category.size() <= 100
+        && data.publishedAt is string && data.publishedAt.size() <= 64
+        && data.featured is bool
+        && data.likes is int
+        && data.reads is int
+        && data.author is map
+        && data.author.name is string && data.author.name.size() <= 100
+        && data.author.avatar is string && data.author.avatar.size() <= 16
+        && data.author.role is string && data.author.role.size() <= 100
+        && data.tags is list && data.tags.size() <= 10
+        && (data.tags.size() == 0 || data.tags[0] is string);
+    }
+
+    // --- MATCH MATCHERS FOR ACTIVE COLLECTIONS (PHASE 1) ---
+
+    // 1. CHANNELS
+    match /channels/{channelId} {
+      allow read: if isSignedIn();
+      allow create: if isVerified() && isValidId(channelId) && isValidChannel(incoming()) && incoming().id == channelId;
+      allow update: if isVerified() && isValidChannel(incoming()) && (
+        incoming().diff(existing()).affectedKeys().hasOnly(['unreadCount']) ||
+        incoming().diff(existing()).affectedKeys().hasOnly(['topic', 'description'])
+      );
+      allow delete: if false; // System channel metadata is immortal
+
+      // 2. CHAL CHATS SUBCOLLECTION (MASTER GATE PATTERN)
+      match /messages/{messageId} {
+        allow read: if isSignedIn();
+        allow create: if isVerified() && isValidId(messageId) && isValidMessage(incoming()) && incoming().id == messageId && incoming().channelId == channelId;
+        allow update: if false; // Realtime logs are transactional logs (no client updates allowed)
+        allow delete: if isVerified() && existing().sender.email == request.auth.token.email; // Only author can revoke posts
+      }
+    }
+
+    // 3. BLOG POST PUBLICATIONS
+    match /blogPosts/{postId} {
+      allow read: if true; // Public tech blog content
+      allow create: if isVerified() && isValidId(postId) && isValidBlogPost(incoming()) && incoming().id == postId;
+      allow update: if isVerified() && isValidBlogPost(incoming()) && (
+        incoming().diff(existing()).affectedKeys().hasOnly(['likes']) ||
+        incoming().diff(existing()).affectedKeys().hasOnly(['reads']) ||
+        incoming().diff(existing()).affectedKeys().hasOnly(['content', 'title', 'excerpt', 'category', 'tags'])
+      );
+      allow delete: if isVerified() && existing().author.name == 'Rakshith (Lead Dev)';
+    }
+
+  }
+}
